@@ -4,7 +4,7 @@ imarpa - use the Marpa parser on the command line
 
 # USAGE
 
-**imarpa** \[_OPTION_\]... _GRAMMAR_ \[FILE\]...
+**imarpa** \[_OPTION_\]... _GRAMMAR_ \[_FILE_\]...
 
 Options:
 
@@ -15,8 +15,9 @@ Options:
     -G KEY=VALUE        grammar arguments
     -M MODULE           load a Perl module, like perl's -M switch
     -R KEY=VALUE        recognizer arguments
-    -h, -?, --help      display this help message
+    -h, -?, --help      display this help message and exit
     -t FORMAT, --to FORMAT output format, defaults to "perl"
+    -v, --version       display version and exit
 
     GRAMMAR     a Marpa grammar
     FILE        input files, otherwise read from STDIN
@@ -26,7 +27,47 @@ json,
 perl,
 yaml.
 
+# DESCRIPTION
+
+The **imarpa** tool allows you to experiment with Marpa grammars on the command line.
+It is not an interactive REPL.
+
+Example: Experimenting with a simple, highly ambiguous grammar:
+
+    $ echo '*=*=*=*' | imarpa --chomp --to json --all "
+      :default ::= action => [values]
+      S ::= '*' | S '=' S"
+
+Output:
+
+    [[[["*"],"=",["*"]],"=",["*"]],"=",["*"]]
+    [[["*"],"=",[["*"],"=",["*"]]],"=",["*"]]
+    [["*"],"=",[[["*"],"=",["*"]],"=",["*"]]]
+    [["*"],"=",[["*"],"=",[["*"],"=",["*"]]]]
+    [[["*"],"=",["*"]],"=",[["*"],"=",["*"]]]
+
 # OPTIONS
+
+- **--all**
+
+    Display all parse trees.
+    This is useful when debugging ambiguous grammars.
+
+    If this option is not used,
+    the behaviour between Marpa releases 2 and 3 differs significantly:
+    Marpa::R2 will return the first parse result.
+    Marpa::R3 will die on ambiguous parses.
+
+- **--chomp**
+
+    Remove trailing newline from input.
+
+    Some input methods such as
+    here-strings `imarpa ... <<<'input'`
+    or echo ` echo 'input' | imarpa ... `
+    add a trailing newline.
+    Your grammar may not want to handle that newline.
+    In that case, use the --chomp option to remove that newline.
 
 - **--man**
 
@@ -61,8 +102,7 @@ yaml.
 
         $ imarpa --marpa 3 -G ranking_method=high_rule_only "..." <input.txt
 
-    See also:
-    [-R](#r-key-value)
+    See also: **-R**
 
 - **-R** _KEY_=_VALUE_
 
@@ -91,8 +131,7 @@ yaml.
 
         $ imarpa -R trace_terminals=1 "..." <input.txt
 
-    See also:
-    [-G](#g-key-value)
+    See also: **-G**
 
 - **--to** _FORMAT_
 - **-t** _FORMAT_
@@ -125,15 +164,6 @@ yaml.
         [YAML::Tiny](https://metacpan.org/pod/YAML::Tiny), or
         [CPAN::Meta::YAML](https://metacpan.org/pod/CPAN::Meta::YAML).
 
-# EXIT STATUS
-
-Exits with zero status if the input was parsed successfully.
-Exits with non-zero status otherwise.
-
-# DESCRIPTION
-
-TODO
-
 # BUGS AND LIMITATIONS
 
 You are unable to set values for **--recce** and **--grammar** arguments
@@ -143,6 +173,12 @@ In particular, this precludes event handlers.
 **Security:**
 The semantics in the grammar DSL may invoke arbitrary Perl subroutines.
 This program must not be used with intrusted input.
+
+## Support
+
+Homepage: [https://github.com/latk/p5-MarpaX-App-imarpa](https://github.com/latk/p5-MarpaX-App-imarpa)
+
+Bug Tracker: [https://github.com/latk/p5-MarpaX-App-imarpa/issues](https://github.com/latk/p5-MarpaX-App-imarpa/issues)
 
 # DEPENDENCIES
 

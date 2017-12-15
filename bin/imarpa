@@ -200,7 +200,7 @@ imarpa - use the Marpa parser on the command line
 
 =head1 USAGE
 
-B<imarpa> [I<OPTION>]... I<GRAMMAR> [FILE]...
+B<imarpa> [I<OPTION>]... I<GRAMMAR> [I<FILE>]...
 
 Options:
 
@@ -211,8 +211,9 @@ Options:
     -G KEY=VALUE        grammar arguments
     -M MODULE           load a Perl module, like perl's -M switch
     -R KEY=VALUE        recognizer arguments
-    -h, -?, --help      display this help message
+    -h, -?, --help      display this help message and exit
     -t FORMAT, --to FORMAT output format, defaults to "perl"
+    -v, --version       display version and exit
 
     GRAMMAR     a Marpa grammar
     FILE        input files, otherwise read from STDIN
@@ -222,9 +223,49 @@ json,
 perl,
 yaml.
 
+=head1 DESCRIPTION
+
+The B<imarpa> tool allows you to experiment with Marpa grammars on the command line.
+It is not an interactive REPL.
+
+Example: Experimenting with a simple, highly ambiguous grammar:
+
+    $ echo '*=*=*=*' | imarpa --chomp --to json --all "
+      :default ::= action => [values]
+      S ::= '*' | S '=' S"
+
+Output:
+
+    [[[["*"],"=",["*"]],"=",["*"]],"=",["*"]]
+    [[["*"],"=",[["*"],"=",["*"]]],"=",["*"]]
+    [["*"],"=",[[["*"],"=",["*"]],"=",["*"]]]
+    [["*"],"=",[["*"],"=",[["*"],"=",["*"]]]]
+    [[["*"],"=",["*"]],"=",[["*"],"=",["*"]]]
+
 =head1 OPTIONS
 
 =over
+
+=item B<--all>
+
+Display all parse trees.
+This is useful when debugging ambiguous grammars.
+
+If this option is not used,
+the behaviour between Marpa releases 2 and 3 differs significantly:
+Marpa::R2 will return the first parse result.
+Marpa::R3 will die on ambiguous parses.
+
+=item B<--chomp>
+
+Remove trailing newline from input.
+
+Some input methods such as
+here-strings C<<<< imarpa ... <<<'input' >>>>
+or echo C< echo 'input' | imarpa ... >
+add a trailing newline.
+Your grammar may not want to handle that newline.
+In that case, use the --chomp option to remove that newline.
 
 =item B<--man>
 
@@ -260,8 +301,7 @@ Example:
 
     $ imarpa --marpa 3 -G ranking_method=high_rule_only "..." <input.txt
 
-See also:
-L<-R|/"-R KEY=VALUE">
+See also: B<-R>
 
 =item B<-R> I<KEY>=I<VALUE>
 
@@ -290,8 +330,7 @@ Example:
 
     $ imarpa -R trace_terminals=1 "..." <input.txt
 
-See also:
-L<-G|/"-G KEY=VALUE">
+See also: B<-G>
 
 =item B<--to> I<FORMAT>
 
@@ -331,15 +370,6 @@ L<CPAN::Meta::YAML|CPAN::Meta::YAML>.
 
 =back
 
-=head1 EXIT STATUS
-
-Exits with zero status if the input was parsed successfully.
-Exits with non-zero status otherwise.
-
-=head1 DESCRIPTION
-
-TODO
-
 =head1 BUGS AND LIMITATIONS
 
 You are unable to set values for B<--recce> and B<--grammar> arguments
@@ -349,6 +379,12 @@ In particular, this precludes event handlers.
 B<Security:>
 The semantics in the grammar DSL may invoke arbitrary Perl subroutines.
 This program must not be used with intrusted input.
+
+=head2 Support
+
+Homepage: L<https://github.com/latk/p5-MarpaX-App-imarpa>
+
+Bug Tracker: L<https://github.com/latk/p5-MarpaX-App-imarpa/issues>
 
 =head1 DEPENDENCIES
 
