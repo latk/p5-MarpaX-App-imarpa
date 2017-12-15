@@ -1,0 +1,385 @@
+#!/usr/bin/env perl
+package  # hide from indexer
+    MarpaX::App::imarpa;
+use strict;
+use warnings;
+use feature qw( say state );
+
+# Perl::Critic choices:
+## no critic (ControlStructures::ProhibitPostfixControls)
+## no critic (ErrorHandling::RequireCarping)
+## no critic (References::ProhibitDoubleSigils)
+## no critic (RegularExpressions::RequireDotMatchAnything)
+## no critic (RegularExpressions::RequireExtendedFormatting)
+## no critic (RegularExpressions::RequireLineBoundaryMatching)
+
+use Getopt::Long ();
+use Pod::Usage qw(pod2usage);
+use English '-no_match_vars';
+
+our $VERSION = '0.001000';
+$VERSION = eval $VERSION;  ## no critic (ProhibitStringyEval, ConstantVersion)
+
+exit(main(@ARGV) // 0)
+    unless caller;
+
+sub main {
+    my (@args) = @_;
+
+    my $all_parses = 0;
+    my $chomp = 0;
+    my $input = undef;
+    my $marpa_release = 2;
+    my %grammar_args;
+    my %recce_args;
+    my @modules;
+    my $output_format = 'perl';
+
+    my $getopt = Getopt::Long::Parser->new(
+        config => [qw(posix_default gnu_getopt auto_version auto_help)],
+    );
+
+    $getopt->getoptionsfromarray(
+        \@args,
+        'G=s' => sub { _split_value(\%grammar_args, @_) },
+        'M=s' => \@modules,
+        'R=s' => sub { _split_value(\%recce_args, @_) },
+        'all|a!' => \$all_parses,
+        'chomp!' => \$chomp,
+        'help|h|?!' => sub { pod2usage(-verbose => 1, -exitval => 0) },
+        'input=s' => \$input,
+        'man!' => sub { pod2usage(-verbose => 2, -exitval => 0) },
+        'marpa=i' => \$marpa_release,
+        'to|t=s' => \$output_format,
+    ) or pod2usage();
+
+    my $dsl = shift @args;
+
+    if (not defined $dsl) {
+        pod2usage("GRAMMAR required");
+    }
+
+    _load_module($_) for @modules;
+
+    my ($grammar_class, $recce_class);
+
+    if ($marpa_release eq '2') {
+        require Marpa::R2;
+        ($grammar_class, $recce_class) =
+            map { "Marpa::R2::Scanless::$_" } qw( G R );
+    }
+    elsif ($marpa_release eq '3') {
+        require Marpa::R3;
+        ($grammar_class, $recce_class) =
+            map { "Marpa::R3::$_" } qw( Grammar Recognizer );
+    }
+    else {
+        pod2usage("--marpa RELEASE must be 2 or 3");
+    }
+
+    my $grammar = $grammar_class->new(+{
+        %grammar_args,
+        source => \$dsl,
+    });
+
+    my $recce = $recce_class->new(+{
+        %recce_args,
+        grammar => $grammar,
+    });
+
+    $input //= do {
+        local $INPUT_RECORD_SEPARATOR = undef;
+        local *ARGV = \@args;
+        <>;
+    };
+
+    chomp $input if $chomp;
+
+    $recce->read(\$input);
+
+    my $valuer = $recce;
+    if ($marpa_release eq '3' and $all_parses) {
+        $valuer = Marpa::R3::Valuer->new({ recognizer => $recce });
+    }
+
+    my $successfull_parse;
+    while (my $value_ref = $valuer->value()) {
+        $successfull_parse = 1;
+        say _output($output_format => $$value_ref);
+        last unless $all_parses;
+    }
+
+    if (not $successfull_parse) {
+        die "Parse failed\n";
+    }
+
+    return;
+}
+
+sub _split_value {
+    my ($hashref, $name, $value) = @_;
+    my ($k, $v) = split /=/, $value, 2;
+    $k =~ tr/-/_/;
+    $hashref->{$k} = $v;
+    return;
+}
+
+sub _load_module {
+    my ($module) = @_;
+    $module =~ s{::}{/}g;
+    require "$module.pm";  ## no critic (Modules::RequireBarewordIncludes)
+    return;
+}
+
+sub _output {
+    my ($format, $data_structure) = @_;
+    $format = lc $format;
+
+    state $formats = {
+        perl => \&_output_perl,
+        json => \&_output_json,
+        yaml => \&_output_yaml,
+    };
+
+    if (my $handler = $formats->{$format}) {
+        return $handler->($data_structure);
+    }
+
+    my $known_formats = join q(, ) => sort keys %$formats;
+    die qq(Unknown output format "$format". Known formats: $known_formats\n);
+}
+
+sub _output_perl {
+    state $dump_handler = _choose_module(
+        'Perl output',
+        'Data::Dump'    => sub { Data::Dump::pp(shift) },
+        'Data::Dumper'  => sub { Data::Dumper::Dump(shift) },
+    );
+    return $dump_handler->(shift);
+}
+
+sub _output_json {
+    state $json_handler = _choose_module(
+        'JSON output',
+        'Cpanel::JSON::XS' => sub { Cpanel::JSON::XS::encode_json(shift) },
+        'JSON::PP' => sub { JSON::PP::encode_json(shift) },
+    );
+    return $json_handler->(shift);
+}
+
+sub _output_yaml {
+    state $yaml_handler = _choose_module(
+        'YAML output',
+        'YAML'              => sub { YAML::Dump(shift) },
+        'YAML::Tiny'        => sub { YAML::Tiny::Dump(shift) },
+        'CPAN::Meta::YAML'  => sub { CPAN::Meta::YAML::Dump(shift) },
+    );
+    return $yaml_handler->(shift);
+}
+
+sub _choose_module {
+    my $goal = shift;
+    my $errors = q();
+    my @modules;
+    while (my ($module, $callback) = splice @_, 0, 2) {
+        return $callback if eval { _load_module($module); 1 };
+        push @modules, $module;
+        $errors .= $EVAL_ERROR;
+    }
+    die sprintf qq(No module for %s found (tried %s)\n%s),
+        $goal, join(q(, ) => @modules), $errors // "(no errors)";
+}
+
+1;
+
+__END__
+
+=head1 NAME
+
+imarpa - use the Marpa parser on the command line
+
+=head1 USAGE
+
+B<imarpa> [I<OPTION>]... I<GRAMMAR> [FILE]...
+
+Options:
+
+    --all               output all parse trees
+    --chomp             remove trailing newline from input
+    --man               display the full manpage
+    --marpa=RELEASE     choose 2 for Marpa::R2 (default) or 3 for Marpa::R3
+    -G KEY=VALUE        grammar arguments
+    -M MODULE           load a Perl module, like perl's -M switch
+    -R KEY=VALUE        recognizer arguments
+    -h, -?, --help      display this help message
+    -t FORMAT, --to FORMAT output format, defaults to "perl"
+
+    GRAMMAR     a Marpa grammar
+    FILE        input files, otherwise read from STDIN
+
+Output formats:
+json,
+perl,
+yaml.
+
+=head1 OPTIONS
+
+=over
+
+=item B<--man>
+
+Display the full manpage.
+
+=item B<--marpa 2>
+
+=item B<--marpa 3>
+
+Choose which release of Marpa to use.
+L<Marpa::R2|Marpa::R2> is the current stable release.
+L<Marpa::R3|Marpa::R3> is in alpha.
+You will need to have that version of Marpa installed.
+
+=item B<-G> I<KEY>=I<VALUE>
+
+Set Grammar options.
+
+If the key contains hyphens, they are substituted with underscores.
+
+Keys for Marpa::R2:
+(none).
+See L<Marpa::R2::Scanless::G|Marpa::R2::Scanless::G> for details.
+
+Keys for Marpa::R3:
+exhaustion,
+ranking_method,
+rejection,
+semantics_package.
+See L<Marpa::R3::Grammar|Marpa::R3::Grammar> for details.
+
+Example:
+
+    $ imarpa --marpa 3 -G ranking_method=high_rule_only "..." <input.txt
+
+See also:
+L<-R|/"-R KEY=VALUE">
+
+=item B<-R> I<KEY>=I<VALUE>
+
+Set recognizer options.
+
+If the key contains hyphens, they are substituted with underscores.
+
+Keys for Marpa::R2:
+end,
+exhaustion,
+max_parses,
+ranking_method,
+rejection,
+semantics_package
+too_many_earley_items
+trace_terminals,
+trace_values.
+See L<Marpa::R2::Scanless::R|Marpa::R2::Scanless::R> for details.
+
+Keys for Marpa::R3:
+too_many_earley_items,
+trace_terminals.
+See L<Marpa::R3::Recognizer|Marpa::R3::Recognizer> for details.
+
+Example:
+
+    $ imarpa -R trace_terminals=1 "..." <input.txt
+
+See also:
+L<-G|/"-G KEY=VALUE">
+
+=item B<--to> I<FORMAT>
+
+=item B<-t> I<FORMAT>
+
+Specify an output format.
+
+Formats are not case-sensitive.
+
+Supported formats:
+
+=over
+
+=item JSON
+
+JSON output.
+Uses one of
+L<Cpanel::JSON::XS|Cpanel::JSON::XS> or
+L<JSON::PP|JSON::PP>.
+
+=item Perl
+
+Pretty-printed Perl data structure.
+Uses one of
+L<Data::Dump|Data::Dump> or
+L<Data::Dumper|Data::Dumper>.
+
+=item YAML
+
+YAML output.
+Uses one of
+L<YAML|YAML>,
+L<YAML::Tiny|YAML::Tiny>, or
+L<CPAN::Meta::YAML|CPAN::Meta::YAML>.
+
+=back
+
+=back
+
+=head1 EXIT STATUS
+
+Exits with zero status if the input was parsed successfully.
+Exits with non-zero status otherwise.
+
+=head1 DESCRIPTION
+
+TODO
+
+=head1 BUGS AND LIMITATIONS
+
+You are unable to set values for B<--recce> and B<--grammar> arguments
+where those values are non-strings.
+In particular, this precludes event handlers.
+
+B<Security:>
+The semantics in the grammar DSL may invoke arbitrary Perl subroutines.
+This program must not be used with intrusted input.
+
+=head1 DEPENDENCIES
+
+If you use B<--marpa 2> (default),
+then you will have to install L<Marpa::R2|Marpa::R2>.
+
+If you wish to use B<--marpa 3>,
+then you will have to install L<Marpa::R3|Marpa::R3>.
+
+Before you can use a specific output format,
+you will have to install the corresponding module.
+
+=head1 AUTHOR
+
+Lukas Atkinson (cpan: AMON) <amon@cpan.org>
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright 2017 Lukas Atkinson
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+=cut
