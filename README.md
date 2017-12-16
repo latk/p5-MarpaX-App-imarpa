@@ -4,23 +4,25 @@ imarpa - use the Marpa parser on the command line
 
 # USAGE
 
-**imarpa** \[_OPTION_\]... _GRAMMAR_ \[_FILE_\]...
+**imarpa** \[_OPTION_\]... \[_GRAMMAR_\] \[_INPUT_\]
 
 Options:
 
     --all               output all parse trees
+    --bnf GRAMMAR       provide grammar as command line arg, not file
     --chomp             remove trailing newline from input
-    --man               display the full manpage
-    --marpa=RELEASE     choose 2 for Marpa::R2 (default) or 3 for Marpa::R3
     -G KEY=VALUE        grammar arguments
-    -M MODULE           load a Perl module, like perl's -M switch
-    -R KEY=VALUE        recognizer arguments
     -h, -?, --help      display this help message and exit
-    -t FORMAT, --to FORMAT output format, defaults to "perl"
+    --input DATA        provide input as command line arg, not file
+    -M MODULE           load a Perl module, like perl's -M switch
+    --man               display the full manpage
+    --marpa RELEASE     choose 2 for Marpa::R2 (default) or 3 for Marpa::R3
+    -R KEY=VALUE        recognizer arguments
+    --to FORMAT         output format, defaults to "perl"
     -v, --version       display version and exit
 
-    GRAMMAR     a Marpa grammar
-    FILE        input files, otherwise read from STDIN
+    GRAMMAR     BNF file
+    INPUT       input file
 
 Output formats:
 json,
@@ -34,9 +36,10 @@ It is not an interactive REPL.
 
 Example: Experimenting with a simple, highly ambiguous grammar:
 
-    $ echo '*=*=*=*' | imarpa --chomp --to json --all "
+    $ imarpa --input '*=*=*=*' --to json --all <<'END'
       :default ::= action => [values]
-      S ::= '*' | S '=' S"
+      S ::= '*' | S '=' S
+    END
 
 Output:
 
@@ -45,6 +48,21 @@ Output:
     [["*"],"=",[[["*"],"=",["*"]],"=",["*"]]]
     [["*"],"=",[["*"],"=",[["*"],"=",["*"]]]]
     [[["*"],"=",["*"]],"=",[["*"],"=",["*"]]]
+
+The command line arguments work largely like a Perl script:
+
+The _GRAMMAR_ is usually a file name.
+You can also use the **--bnf** option
+to write the grammar inside a command line argument.
+This is like Perl's "-e" or "-E" option.
+If no _GRAMMAR_ is provided, the grammar is read from STDIN.
+
+The _INPUT_ is also a file name.
+Alternatively, you can use the **--input** option.
+If no _INPUT_ is provided, the input is read from STDIN.
+
+Either _GRAMMAR_ or _INPUT_ have to be specified explicitly
+as at most one of them can be read from STDIN.
 
 # OPTIONS
 
@@ -58,6 +76,13 @@ Output:
     Marpa::R2 will return the first parse result.
     Marpa::R3 will die on ambiguous parses.
 
+- **--bnf GRAMMAR**
+
+    Specify a literal grammar snippet, instead of reading it from a file.
+
+    If the **--bnf** option is provided multiple times,
+    the grammar snippets are concatenated with a newline in between.
+
 - **--chomp**
 
     Remove trailing newline from input.
@@ -68,6 +93,10 @@ Output:
     add a trailing newline.
     Your grammar may not want to handle that newline.
     In that case, use the --chomp option to remove that newline.
+
+- **--input DATA**
+
+    Specify the input data, instead of reading it from a file.
 
 - **--man**
 
@@ -136,7 +165,7 @@ Output:
 - **--to** _FORMAT_
 - **-t** _FORMAT_
 
-    Specify an output format.
+    Specify an output format. Defaults to Perl.
 
     Formats are not case-sensitive.
 

@@ -30,10 +30,11 @@ sub main {
     my $chomp = 0;
     my $input = undef;
     my $marpa_release = 2;
+    my $output_format = 'perl';
     my %grammar_args;
     my %recce_args;
+    my @bnf;
     my @modules;
-    my $output_format = 'perl';
 
     my $getopt = Getopt::Long::Parser->new(
         config => [qw(posix_default gnu_getopt auto_version auto_help)],
@@ -41,23 +42,32 @@ sub main {
 
     $getopt->getoptionsfromarray(
         \@args,
-        'G=s' => sub { _split_value(\%grammar_args, @_) },
-        'M=s' => \@modules,
-        'R=s' => sub { _split_value(\%recce_args, @_) },
         'all|a!' => \$all_parses,
+        'bnf=s' => \@bnf,
         'chomp!' => \$chomp,
+        'G=s' => sub { _split_value(\%grammar_args, @_) },
         'help|h|?!' => sub { pod2usage(-verbose => 1, -exitval => 0) },
         'input=s' => \$input,
+        'M=s' => \@modules,
         'man!' => sub { pod2usage(-verbose => 2, -exitval => 0) },
         'marpa=i' => \$marpa_release,
+        'R=s' => sub { _split_value(\%recce_args, @_) },
         'to|t=s' => \$output_format,
     ) or pod2usage();
 
-    my $dsl = shift @args;
+    if (not @bnf) {
+        my $filename = shift @args;
+        my $fh = _open_or_stdin($filename, \*STDIN)
+            or pod2usage(qq(Cannot open GRAMMAR file "$filename": $OS_ERROR));
+        local $INPUT_RECORD_SEPARATOR = undef;
+        push @bnf, scalar readline $fh;
+    }
 
-    if (not defined $dsl) {
+    if (not @bnf) {
         pod2usage("GRAMMAR required");
     }
+
+    my $dsl = join qq(\n) => @bnf;
 
     _load_module($_) for @modules;
 
@@ -87,11 +97,13 @@ sub main {
         grammar => $grammar,
     });
 
-    $input //= do {
+    if (not defined $input) {
+        my $filename = shift @args;
+        my $fh = _open_or_stdin($filename, \*STDIN)
+            or pod2usage(qq(Cannot open INPUT file "$filename": $OS_ERROR));
         local $INPUT_RECORD_SEPARATOR = undef;
-        local *ARGV = \@args;
-        <>;
-    };
+        $input = readline $fh;
+    }
 
     chomp $input if $chomp;
 
@@ -114,6 +126,15 @@ sub main {
     }
 
     return;
+}
+
+sub _open_or_stdin {
+    my ($filename, $default) = @_;
+    return $default if not defined $filename;
+    return \*STDIN if $filename eq q(-);
+    open my $fh, '<', $filename
+        or return;
+    return $fh;
 }
 
 sub _split_value {
@@ -200,23 +221,25 @@ imarpa - use the Marpa parser on the command line
 
 =head1 USAGE
 
-B<imarpa> [I<OPTION>]... I<GRAMMAR> [I<FILE>]...
+B<imarpa> [I<OPTION>]... [I<GRAMMAR>] [I<INPUT>]
 
 Options:
 
     --all               output all parse trees
+    --bnf GRAMMAR       provide grammar as command line arg, not file
     --chomp             remove trailing newline from input
-    --man               display the full manpage
-    --marpa=RELEASE     choose 2 for Marpa::R2 (default) or 3 for Marpa::R3
     -G KEY=VALUE        grammar arguments
-    -M MODULE           load a Perl module, like perl's -M switch
-    -R KEY=VALUE        recognizer arguments
     -h, -?, --help      display this help message and exit
-    -t FORMAT, --to FORMAT output format, defaults to "perl"
+    --input DATA        provide input as command line arg, not file
+    -M MODULE           load a Perl module, like perl's -M switch
+    --man               display the full manpage
+    --marpa RELEASE     choose 2 for Marpa::R2 (default) or 3 for Marpa::R3
+    -R KEY=VALUE        recognizer arguments
+    --to FORMAT         output format, defaults to "perl"
     -v, --version       display version and exit
 
-    GRAMMAR     a Marpa grammar
-    FILE        input files, otherwise read from STDIN
+    GRAMMAR     BNF file
+    INPUT       input file
 
 Output formats:
 json,
@@ -230,9 +253,10 @@ It is not an interactive REPL.
 
 Example: Experimenting with a simple, highly ambiguous grammar:
 
-    $ echo '*=*=*=*' | imarpa --chomp --to json --all "
+    $ imarpa --input '*=*=*=*' --to json --all <<'END'
       :default ::= action => [values]
-      S ::= '*' | S '=' S"
+      S ::= '*' | S '=' S
+    END
 
 Output:
 
@@ -241,6 +265,21 @@ Output:
     [["*"],"=",[[["*"],"=",["*"]],"=",["*"]]]
     [["*"],"=",[["*"],"=",[["*"],"=",["*"]]]]
     [[["*"],"=",["*"]],"=",[["*"],"=",["*"]]]
+
+The command line arguments work largely like a Perl script:
+
+The I<GRAMMAR> is usually a file name.
+You can also use the B<--bnf> option
+to write the grammar inside a command line argument.
+This is like Perl's "-e" or "-E" option.
+If no I<GRAMMAR> is provided, the grammar is read from STDIN.
+
+The I<INPUT> is also a file name.
+Alternatively, you can use the B<--input> option.
+If no I<INPUT> is provided, the input is read from STDIN.
+
+Either I<GRAMMAR> or I<INPUT> have to be specified explicitly
+as at most one of them can be read from STDIN.
 
 =head1 OPTIONS
 
@@ -256,6 +295,13 @@ the behaviour between Marpa releases 2 and 3 differs significantly:
 Marpa::R2 will return the first parse result.
 Marpa::R3 will die on ambiguous parses.
 
+=item B<--bnf GRAMMAR>
+
+Specify a literal grammar snippet, instead of reading it from a file.
+
+If the B<--bnf> option is provided multiple times,
+the grammar snippets are concatenated with a newline in between.
+
 =item B<--chomp>
 
 Remove trailing newline from input.
@@ -266,6 +312,10 @@ or echo C< echo 'input' | imarpa ... >
 add a trailing newline.
 Your grammar may not want to handle that newline.
 In that case, use the --chomp option to remove that newline.
+
+=item B<--input DATA>
+
+Specify the input data, instead of reading it from a file.
 
 =item B<--man>
 
@@ -336,7 +386,7 @@ See also: B<-G>
 
 =item B<-t> I<FORMAT>
 
-Specify an output format.
+Specify an output format. Defaults to Perl.
 
 Formats are not case-sensitive.
 
