@@ -37,6 +37,7 @@ sub main {
     my %grammar_args;
     my %recce_args;
     my @bnf;
+    my @evals;
     my @modules;
 
     my $getopt = Getopt::Long::Parser->new(
@@ -48,6 +49,7 @@ sub main {
         'all|a!' => \$all_parses,
         'bnf=s' => \@bnf,
         'chomp!' => \$chomp,
+        'e=s' => \@evals,
         'G=s' => sub { _split_value(\%grammar_args, @_) },
         'help|h|?!' => sub { pod2usage(-verbose => 1, -exitval => 0) },
         'input=s' => \$input,
@@ -75,6 +77,13 @@ sub main {
     my $dsl = join qq(\n) => @bnf;
 
     _load_module($_) for @modules;
+
+    for my $i (0 .. $#evals) {
+        my $name = '-e';
+        $name .= q(:) . ($i + 1) if @evals > 1;
+        my $source = $evals[$i];
+        _namespaced_eval($semantics_package, $name, $source);
+    }
 
     my ($grammar_class, $recce_class);
 
@@ -139,6 +148,25 @@ sub main {
     }
 
     return;
+}
+
+# default package for eval'd code,
+# can be overridden with --semantics-package
+{
+    package  # hide from indexer
+        MarpaX::App::imarpa::Semantics;
+}
+
+sub _namespaced_eval {
+    my ($package, $name, $source) = @_;
+    $package //= 'MarpaX::App::imarpa::Semantics';
+    my $namespaced_source = qq{};
+    $namespaced_source .= qq{#line 1 "$name"\n};
+    $namespaced_source .= qq{package $package;};
+    $namespaced_source .= $source;
+    $namespaced_source .= q{;1};
+    ## no critic (ProhibitStringyEval)
+    return (eval $namespaced_source or die $EVAL_ERROR);
 }
 
 sub command_version {
@@ -248,6 +276,7 @@ Options:
     --all               output all parse trees
     --bnf GRAMMAR       provide grammar as command line arg, not file
     --chomp             remove trailing newline from input
+    -e CODE             eval Perl code
     -G KEY=VALUE        grammar arguments
     -h, -?, --help      display this help message and exit
     --input DATA        provide input as command line arg, not file
@@ -333,6 +362,13 @@ or echo C< echo 'input' | imarpa ... >
 add a trailing newline.
 Your grammar may not want to handle that newline.
 In that case, use the --chomp option to remove that newline.
+
+=item B<-e> I<CODE>
+
+Evaluate Perl code.
+This is very similar to the C<perl -e ...> option.
+If a B<--semantics-package> was specified,
+the code is compiled in that package.
 
 =item B<--input DATA>
 
@@ -455,13 +491,14 @@ L<CPAN::Meta::YAML|CPAN::Meta::YAML>.
 
 =head1 BUGS AND LIMITATIONS
 
-You are unable to set values for B<--recce> and B<--grammar> arguments
+You are unable to set values for B<-R> and B<-G> arguments
 where those values are non-strings.
 In particular, this precludes event handlers.
 
 B<Security:>
+This program must not be used with untrusted input.
 The semantics in the grammar DSL may invoke arbitrary Perl subroutines.
-This program must not be used with intrusted input.
+With the B<-e> option, arbitrary code can be executed directly.
 
 =head2 Support
 

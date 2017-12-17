@@ -11,6 +11,7 @@ Options:
     --all               output all parse trees
     --bnf GRAMMAR       provide grammar as command line arg, not file
     --chomp             remove trailing newline from input
+    -e CODE             eval Perl code
     -G KEY=VALUE        grammar arguments
     -h, -?, --help      display this help message and exit
     --input DATA        provide input as command line arg, not file
@@ -94,6 +95,13 @@ as at most one of them can be read from STDIN.
     add a trailing newline.
     Your grammar may not want to handle that newline.
     In that case, use the --chomp option to remove that newline.
+
+- **-e** _CODE_
+
+    Evaluate Perl code.
+    This is very similar to the `perl -e ...` option.
+    If a **--semantics-package** was specified,
+    the code is compiled in that package.
 
 - **--input DATA**
 
@@ -208,13 +216,14 @@ as at most one of them can be read from STDIN.
 
 # BUGS AND LIMITATIONS
 
-You are unable to set values for **--recce** and **--grammar** arguments
+You are unable to set values for **-R** and **-G** arguments
 where those values are non-strings.
 In particular, this precludes event handlers.
 
 **Security:**
+This program must not be used with untrusted input.
 The semantics in the grammar DSL may invoke arbitrary Perl subroutines.
-This program must not be used with intrusted input.
+With the **-e** option, arbitrary code can be executed directly.
 
 ## Support
 
