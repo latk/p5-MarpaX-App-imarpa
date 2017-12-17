@@ -33,6 +33,7 @@ sub main {
     my $input = undef;
     my $marpa_release = 2;
     my $output_format = 'perl';
+    my $semantics_package = undef;
     my %grammar_args;
     my %recce_args;
     my @bnf;
@@ -54,6 +55,7 @@ sub main {
         'man!' => sub { pod2usage(-verbose => 2, -exitval => 0) },
         'marpa=i' => \$marpa_release,
         'R=s' => sub { _split_value(\%recce_args, @_) },
+        'semantics-package=s' => \$semantics_package,
         'to|t=s' => \$output_format,
         'version' => sub { command_version(); exit 0 },
     ) or pod2usage();
@@ -78,13 +80,21 @@ sub main {
 
     if ($marpa_release eq '2') {
         require Marpa::R2;
+
         ($grammar_class, $recce_class) =
             map { "Marpa::R2::Scanless::$_" } qw( G R );
+
+        $recce_args{semantics_package} = $semantics_package
+            if defined $semantics_package;
     }
     elsif ($marpa_release eq '3') {
         require Marpa::R3;
+
         ($grammar_class, $recce_class) =
             map { "Marpa::R3::$_" } qw( Grammar Recognizer );
+
+        $grammar_args{semantics_package} = $semantics_package
+            if defined $semantics_package;
     }
     else {
         pod2usage("--marpa RELEASE must be 2 or 3");
@@ -245,6 +255,7 @@ Options:
     --man               display the full manpage
     --marpa RELEASE     choose 2 for Marpa::R2 (default) or 3 for Marpa::R3
     -R KEY=VALUE        recognizer arguments
+    --semantics-package NAME    set semantics_package grammar/recce argument
     --to FORMAT         output format, defaults to "perl"
     --version           display version and exit
 
@@ -391,6 +402,18 @@ Example:
     $ imarpa -R trace_terminals=1 "..." <input.txt
 
 See also: B<-G>
+
+=item B<--semantics-package> I<NAME>
+
+Specify the semantics package.
+
+This option simplifies switching between Marpa R2 and R3.
+It is equivalent
+to C<-R semantics_package=NAME> for Marpa::R2, and
+to C<-G semantics_package=NAME> for Marpa::R3.
+
+But note that the interface for semantics has changed,
+so it is not possible in general to reuse the same semantics.
 
 =item B<--to> I<FORMAT>
 

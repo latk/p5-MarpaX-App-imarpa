@@ -18,6 +18,7 @@ Options:
     --man               display the full manpage
     --marpa RELEASE     choose 2 for Marpa::R2 (default) or 3 for Marpa::R3
     -R KEY=VALUE        recognizer arguments
+    --semantics-package NAME    set semantics_package grammar/recce argument
     --to FORMAT         output format, defaults to "perl"
     --version           display version and exit
 
@@ -161,6 +162,18 @@ as at most one of them can be read from STDIN.
         $ imarpa -R trace_terminals=1 "..." <input.txt
 
     See also: **-G**
+
+- **--semantics-package** _NAME_
+
+    Specify the semantics package.
+
+    This option simplifies switching between Marpa R2 and R3.
+    It is equivalent
+    to `-R semantics_package=NAME` for Marpa::R2, and
+    to `-G semantics_package=NAME` for Marpa::R3.
+
+    But note that the interface for semantics has changed,
+    so it is not possible in general to reuse the same semantics.
 
 - **--to** _FORMAT_
 - **-t** _FORMAT_
