@@ -1,5 +1,6 @@
 requires "English" => "0";
 requires "Getopt::Long" => "0";
+requires "Marpa::R2" => "0";
 requires "Pod::Usage" => "0";
 requires "feature" => "0";
 requires "perl" => "v5.14.0";

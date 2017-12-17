@@ -31,6 +31,7 @@ my %module_build_args = (
   "requires" => {
     "English" => 0,
     "Getopt::Long" => 0,
+    "Marpa::R2" => 0,
     "Pod::Usage" => 0,
     "feature" => 0,
     "perl" => "v5.14.0",
