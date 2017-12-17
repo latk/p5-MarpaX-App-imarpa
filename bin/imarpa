@@ -205,8 +205,9 @@ sub _output {
     $format = lc $format;
 
     state $formats = {
-        perl => \&_output_perl,
         json => \&_output_json,
+        perl => \&_output_perl,
+        str  => \&_output_str,
         yaml => \&_output_yaml,
     };
 
@@ -225,6 +226,10 @@ sub _output_perl {
         'Data::Dumper'  => sub { Data::Dumper::Dump(shift) },
     );
     return $dump_handler->(shift);
+}
+
+sub _output_str {
+    return q() . shift;
 }
 
 sub _output_json {
@@ -294,6 +299,7 @@ Options:
 Output formats:
 json,
 perl,
+str,
 yaml.
 
 =head1 DESCRIPTION
@@ -476,6 +482,13 @@ Pretty-printed Perl data structure.
 Uses one of
 L<Data::Dump|Data::Dump> or
 L<Data::Dumper|Data::Dumper>.
+
+=item Str
+
+Print the output directly.
+This is only useful if your AST consists of
+objects with overloaded stringification.
+Otherwise, you'll only get useless output like C<ARRAY(0x123CAFE)>.
 
 =item YAML
 

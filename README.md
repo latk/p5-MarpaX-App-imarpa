@@ -29,6 +29,7 @@ Options:
 Output formats:
 json,
 perl,
+str,
 yaml.
 
 # DESCRIPTION
@@ -205,6 +206,13 @@ as at most one of them can be read from STDIN.
         Uses one of
         [Data::Dump](https://metacpan.org/pod/Data::Dump) or
         [Data::Dumper](https://metacpan.org/pod/Data::Dumper).
+
+    - Str
+
+        Print the output directly.
+        This is only useful if your AST consists of
+        objects with overloaded stringification.
+        Otherwise, you'll only get useless output like `ARRAY(0x123CAFE)`.
 
     - YAML
 
