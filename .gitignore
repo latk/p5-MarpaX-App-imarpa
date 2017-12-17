@@ -1,2 +1,6 @@
-/MarpaX-App-imarpa-*
 /.build/
+/_build
+/blib/
+/Build
+/MarpaX-App-imarpa-*
+/MYMETA.*
