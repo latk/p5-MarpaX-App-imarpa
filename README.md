@@ -19,7 +19,7 @@ Options:
     --marpa RELEASE     choose 2 for Marpa::R2 (default) or 3 for Marpa::R3
     -R KEY=VALUE        recognizer arguments
     --to FORMAT         output format, defaults to "perl"
-    -v, --version       display version and exit
+    --version           display version and exit
 
     GRAMMAR     BNF file
     INPUT       input file

@@ -20,6 +20,8 @@ use English '-no_match_vars';
 our $VERSION = '0.001000';
 $VERSION = eval $VERSION;  ## no critic (ProhibitStringyEval, ConstantVersion)
 
+our $COPYRIGHT = '2017 Lukas Atkinson';
+
 exit(main(@ARGV) // 0)
     unless caller;
 
@@ -53,6 +55,7 @@ sub main {
         'marpa=i' => \$marpa_release,
         'R=s' => sub { _split_value(\%recce_args, @_) },
         'to|t=s' => \$output_format,
+        'version' => sub { command_version(); exit 0 },
     ) or pod2usage();
 
     if (not @bnf) {
@@ -125,6 +128,13 @@ sub main {
         die "Parse failed\n";
     }
 
+    return;
+}
+
+sub command_version {
+    say qq(imarpa version $VERSION);
+    say qq(Copyright $COPYRIGHT);
+    say qq(imarpa is licensed under the GPLv3+, run "imarpa --man" for details.);
     return;
 }
 
@@ -236,7 +246,7 @@ Options:
     --marpa RELEASE     choose 2 for Marpa::R2 (default) or 3 for Marpa::R3
     -R KEY=VALUE        recognizer arguments
     --to FORMAT         output format, defaults to "perl"
-    -v, --version       display version and exit
+    --version           display version and exit
 
     GRAMMAR     BNF file
     INPUT       input file
